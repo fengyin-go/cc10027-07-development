@@ -65,6 +65,15 @@ def export_entries(
         headers={"Content-Disposition": 'attachment; filename="dedup.csv"'})
 
 
+@router.get("/results", response_model=PageResult[dict])
+def list_results(
+    策略编号: str | None = Query(default=None, description="按策略编号过滤重算结果"),
+) -> PageResult[dict]:
+    """去重重算结果：只来自已发布的清洗输出；必须声明在 /{entry_id} 之前。"""
+    items = service.list_results(策略编号=策略编号)
+    return PageResult(items=items, total=len(items), page=1, size=max(len(items), 1))
+
+
 @router.get("/{entry_id}", response_model=dict)
 def get_entry(entry_id: int) -> dict:
     """读取单条去重策略明细；不存在时给出可读的错误说明。"""
@@ -81,6 +90,15 @@ def create_entry(payload: dict[str, object]) -> ActionResult:
     if missing:
         return ActionResult(ok=False, message=f"缺少必填字段：{'、'.join(missing)}")
     return ActionResult(ok=True, message="去重策略已登记", entry=entry)
+
+
+@router.post("/{entry_id}/recompute", response_model=ActionResult)
+def recompute(entry_id: int) -> ActionResult:
+    """重算清洗后数据集：只读取已发布部分，不会同时接收两版输出。"""
+    summary, message = service.recompute(entry_id)
+    if summary is None:
+        return ActionResult(ok=False, message=message)
+    return ActionResult(ok=True, message=message, entry=summary)
 
 
 @router.post("/{entry_id}/actions", response_model=ActionResult)

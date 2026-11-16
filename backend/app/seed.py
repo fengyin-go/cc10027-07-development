@@ -3,6 +3,38 @@ from __future__ import annotations
 
 from typing import Any
 
+
+def _input_customer_rows() -> list[dict[str, Any]]:
+    """CLEA-0018 的输入数据集 input_customer（130 行）。
+
+    - 每 5 行一个空 register_date：走空值补全；
+    - 第 120 行是无法解析的日期：V1 的 strict_date 表达式在此中断；
+    - 第 124 行非空但格式错误：必须进异常分支，不能默认为成功；
+    - 第 129 行 customer_id 与第 128 行重复：供去重模块重算演示。
+    """
+    rows: list[dict[str, Any]] = []
+    for no in range(1, 131):
+        register_date: str | None
+        if no == 120:
+            register_date = "2026-13-45"
+        elif no == 124:
+            register_date = "2026/11/05"
+        elif no % 5 == 0:
+            register_date = None
+        else:
+            register_date = f"2026-08-{(no % 28) + 1:02d}"
+        rows.append({
+            "id": no,
+            "数据集名称": "input_customer",
+            "行号": no,
+            "原始行标识": f"input_customer#{no:06d}",
+            "customer_id": "CUST-000128" if no == 129 else f"CUST-{no:06d}",
+            "customer_name": f"客户{no:04d}",
+            "register_date": register_date,
+        })
+    return rows
+
+
 SEED_ROWS: dict[str, list[dict[str, Any]]] = {
     "datasource": [{'id': 1,
   'status': '草稿',
@@ -255,7 +287,19 @@ SEED_ROWS: dict[str, list[dict[str, Any]]] = {
   '异常阈值': '数据清洗样例3',
   '输出字段': '数据清洗样例3',
   '规则版本': '数据清洗样例3',
-  '生效日期': '2026-09-03'}],
+  '生效日期': '2026-09-03'},
+ {'id': 4,
+  'status': '已启用',
+  'pending': False,
+  'abnormal': False,
+  '清洗编号': 'CLEA-0018',
+  '输入数据集': 'input_customer',
+  '空值策略': '空值补全',
+  '格式表达式': 'strict_date:YYYY-MM-DD',
+  '异常阈值': '5',
+  '输出字段': 'customer_id,customer_name,register_date',
+  '规则版本': 'V1',
+  '生效日期': '2026-09-01'}],
     "dedup": [{'id': 1,
   'status': '草稿',
   'pending': True,
@@ -291,7 +335,19 @@ SEED_ROWS: dict[str, list[dict[str, Any]]] = {
   '保留顺序': '重复消除样例3',
   '时间窗口': '2026-09-03',
   '重复阈值': '重复消除样例3',
-  '输出数据集': '重复消除样例3'}],
+  '输出数据集': '重复消除样例3'},
+ {'id': 4,
+  'status': '已启用',
+  'pending': False,
+  'abnormal': False,
+  '策略编号': 'DEDU-0018',
+  '输入数据集': 'cleaned_input_customer',
+  '业务键列': 'customer_id',
+  '排序字段': '行号',
+  '保留顺序': '保留最早',
+  '时间窗口': '2026-11-01',
+  '重复阈值': '1',
+  '输出数据集': 'dedup_input_customer'}],
     "partition": [{'id': 1,
   'status': '草稿',
   'pending': True,
@@ -651,5 +707,12 @@ SEED_ROWS: dict[str, list[dict[str, Any]]] = {
   '缓存秒数': '数据服务发布样例3',
   '分页上限': '数据服务发布样例3',
   '发布版本': '数据服务发布样例3',
-  '消费应用': '数据服务发布样例3'}]
+  '消费应用': '数据服务发布样例3'}],
+    # 清洗执行的运行态内部表（下划线前缀：不作为业务模块出现在运营概览）
+    "_cleaning_input": _input_customer_rows(),
+    "_cleaning_dataset": [],
+    "_cleaning_batch": [],
+    "_cleaning_report": [],
+    "_cleaning_journal": [],
+    "_dedup_result": [],
 }

@@ -48,6 +48,14 @@
             >
               {{ action }}
             </button>
+            <button
+              class="link"
+              type="button"
+              :data-testid="`recompute-${row.id}`"
+              @click="recompute(row)"
+            >
+              重算
+            </button>
           </td>
         </tr>
         <tr v-if="!rows.length">
@@ -72,8 +80,35 @@
       </form>
     </div>
 
+    <section class="panel" data-testid="result-panel">
+      <h3>重算结果（只读取已发布的清洗输出，不会同时接收两版）</h3>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>策略编号</th><th>清洗编号</th><th>发布代次</th><th>规则版本</th>
+            <th>原始行标识</th><th>业务键值</th><th>异常处理结果</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="result in results" :key="String(result.id)">
+            <td>{{ result.策略编号 }}</td>
+            <td>{{ result.清洗编号 }}</td>
+            <td>{{ result.发布代次 }}</td>
+            <td>{{ result.规则版本 }}</td>
+            <td>{{ result.原始行标识 }}</td>
+            <td>{{ result.业务键值 }}</td>
+            <td>{{ result.异常处理结果 }}</td>
+          </tr>
+          <tr v-if="!results.length">
+            <td colspan="7" class="empty-state">暂无重算结果，可对去重策略执行「重算」</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
     <footer class="page-foot">
       <span>共 {{ total }} 条重复消除记录</span>
+      <span v-if="noticeMessage" class="notice-text">{{ noticeMessage }}</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
   </section>
@@ -95,6 +130,8 @@ const metricNames = ["去重策略总数", "待校验去重策略", "已启用�
 const rows = ref<Row[]>([])
 const total = ref(0)
 const errorMessage = ref('')
+const noticeMessage = ref('')
+const results = ref<Row[]>([])
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
 const showCreate = ref(false)
@@ -184,5 +221,31 @@ async function reload() {
   }
 }
 
-onMounted(reload)
+async function reloadResults() {
+  try {
+    const response = await request(`${ENDPOINT}/results`)
+    if (response.ok) results.value = (await response.json()).items ?? []
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '重算结果读取失败'
+  }
+}
+
+async function recompute(row: Row) {
+  errorMessage.value = ''
+  noticeMessage.value = ''
+  try {
+    const response = await request(`${ENDPOINT}/${row.id}/recompute`, { method: 'POST' })
+    const payload = await response.json()
+    if (!response.ok || !payload.ok) throw new Error(payload.message || '去重重算未生效')
+    noticeMessage.value = payload.message ?? ''
+    await reloadResults()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '去重重算失败'
+  }
+}
+
+onMounted(() => {
+  void reload()
+  void reloadResults()
+})
 </script>
